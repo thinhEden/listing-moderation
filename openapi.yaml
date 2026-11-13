@@ -1,0 +1,275 @@
+openapi: 3.0.3
+info:
+  title: Listing Moderation Service
+  version: "1.0.0"
+  description: |
+    Wire contract for the take-home exercise. What is defined here is normative —
+    the conformance suite depends on these paths, payloads and status codes
+    exactly. Adding to it is allowed; changing what is here is not. Everything
+    behind the handler is your design.
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /livez:
+    get:
+      summary: Liveness probe
+      description: Record what you made it report in ARCHITECTURE.md.
+      responses:
+        "200":
+          description: Probe succeeded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, example: ok }
+        "503":
+          description: Probe failed
+
+  /readyz:
+    get:
+      summary: Readiness probe
+      description: Record what you made it report in ARCHITECTURE.md.
+      responses:
+        "200":
+          description: Probe succeeded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, example: ok }
+        "503":
+          description: Probe failed
+
+  /v1/listings:
+    post:
+      summary: Submit a listing for moderation
+      description: |
+        Accepts the listing and returns immediately. Evaluation happens
+        asynchronously; the caller polls GET /v1/listings/{id}.
+
+        Evaluation attempts may repeat. At most one automated result may be
+        committed for a listing; a stale attempt must not replace that result
+        or a subsequent human resolution. See BRIEF.md for the phase definitions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ListingRequest" }
+      responses:
+        "202":
+          description: Accepted for moderation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListingAccepted" }
+        "200":
+          description: Replay of an earlier submission — the listing already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListingAccepted" }
+        "400":
+          description: Malformed or invalid request body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: |
+            A submission key from an earlier request was reused with a different
+            request body.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Referenced seller or category does not exist
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+    get:
+      summary: List listings
+      parameters:
+        - in: query
+          name: seller_id
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { $ref: "#/components/schemas/Status" }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Matching listings, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Listing" }
+
+  /v1/listings/{id}:
+    get:
+      summary: Fetch a listing and its moderation outcome
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The listing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Listing" }
+        "404":
+          description: No such listing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/listings/{id}/decision:
+    post:
+      summary: Human moderator decision
+      description: |
+        Valid only for a listing in `needs_human`. Any other status returns 409.
+        Human resolution is a separate phase from automated moderation. One
+        valid request may commit the human result and return 200; concurrent
+        losers and subsequent requests return 409. An earlier automated
+        escalation does not prevent this human result from being committed.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, moderator_id]
+              properties:
+                decision:
+                  type: string
+                  enum: [approve, reject]
+                moderator_id: { type: string }
+                note: { type: string }
+      responses:
+        "200":
+          description: Decision applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Listing" }
+        "404":
+          description: No such listing
+        "409":
+          description: Listing is not awaiting human review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  schemas:
+    Status:
+      type: string
+      enum:
+        - pending
+        - auto_approved
+        - auto_rejected
+        - needs_human
+        - published
+        - rejected
+        - expired
+
+    ListingRequest:
+      type: object
+      required: [seller_id, title, description, price_vnd, category_id]
+      properties:
+        seller_id: { type: string, example: "s-1001" }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 5000 }
+        price_vnd: { type: integer, format: int64, minimum: 0 }
+        category_id: { type: string, example: "c-phones" }
+
+    ListingAccepted:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string }
+        status: { $ref: "#/components/schemas/Status" }
+
+    Listing:
+      type: object
+      required: [id, seller_id, title, description, price_vnd, category_id, status, created_at]
+      properties:
+        id: { type: string }
+        seller_id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        price_vnd: { type: integer, format: int64 }
+        category_id: { type: string }
+        status: { $ref: "#/components/schemas/Status" }
+        created_at: { type: string, format: date-time }
+        decided_at:
+          type: string
+          format: date-time
+          nullable: true
+        decision:
+          $ref: "#/components/schemas/Decision"
+
+    Decision:
+      type: object
+      nullable: true
+      description: |
+        Present once the listing has left `pending`. `reasons` explains the
+        outcome to a human moderator.
+        Represents the current phase's committed result. A human resolution may
+        replace the automated escalation outcome; this is not a duplicate
+        automated result. No additional phase field or history endpoint is required.
+      required: [outcome, reasons]
+      properties:
+        outcome:
+          type: string
+          enum: [approved, rejected, escalated]
+        reasons:
+          type: array
+          items: { $ref: "#/components/schemas/Reason" }
+
+    Reason:
+      type: object
+      required: [rule_id, message]
+      properties:
+        rule_id:
+          type: string
+          description: One of R1..R5, or a rule id you introduce.
+          example: "R1"
+        message:
+          type: string
+          description: |
+            Human-readable explanation of why this rule fired. When rule_id is
+            R1, message must contain the matched term from seed/banned_keywords.json
+            verbatim apart from letter case. Putting the term only in detail does
+            not satisfy this requirement. The surrounding wording is your choice.
+          example: 'title contains banned term "replica"'
+        detail:
+          type: object
+          additionalProperties: true
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: "invalid_request" }
+            message: { type: string }

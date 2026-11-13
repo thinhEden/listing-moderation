@@ -1,0 +1,7 @@
+[
+  { "id": "c-phones",     "name": "Mobile Phones",    "median_price_vnd": 6000000 },
+  { "id": "c-laptops",    "name": "Laptops",          "median_price_vnd": 18000000 },
+  { "id": "c-motorbikes", "name": "Motorbikes",       "median_price_vnd": 32000000 },
+  { "id": "c-furniture",  "name": "Home & Furniture", "median_price_vnd": 2500000 },
+  { "id": "c-fashion",    "name": "Fashion",          "median_price_vnd": 450000 }
+]

@@ -1,0 +1,10 @@
+[
+  { "id": "s-1001", "name": "Nguyen Van A",  "trust_score": 92, "verified": true,  "note": "long-standing trusted seller" },
+  { "id": "s-1002", "name": "Tran Thi B",    "trust_score": 64, "verified": true,  "note": "ordinary seller" },
+  { "id": "s-1003", "name": "Le Van C",      "trust_score": 31, "verified": true,  "note": "low trust" },
+  { "id": "s-1004", "name": "Pham Thi D",    "trust_score": 70, "verified": false, "note": "unverified, mid trust" },
+  { "id": "s-1005", "name": "Hoang Van E",   "trust_score": 88, "verified": false, "note": "unverified, high trust" },
+  { "id": "s-1006", "name": "Vo Thi F",      "trust_score": 80, "verified": true,  "note": "exactly at the trust threshold" },
+  { "id": "s-1007", "name": "Dang Van G",    "trust_score": 79, "verified": true,  "note": "one below the trust threshold" },
+  { "id": "s-1008", "name": "Bui Thi H",     "trust_score": 0,  "verified": false, "note": "brand new account" }
+]

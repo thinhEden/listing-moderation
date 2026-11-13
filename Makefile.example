@@ -1,0 +1,20 @@
+# Example only, shown in Go — your Makefile is yours to write in whatever language
+# you choose. These two targets are the contract (BRIEF.md §3.1); everything else is
+# optional.
+
+.PHONY: run test
+PORT ?= 8080
+
+## run: start everything; the API must be answering on $(PORT) within 180s,
+## including any image build this target triggers on a cold machine.
+## If you use docker compose, bring it up here — `make run` is the whole interface.
+## Your server must implement this flag, or read PORT itself.
+run:
+	go run ./cmd/server -addr=:$(PORT)
+
+## test: your own tests; no separately running service. Exit nonzero on failure.
+## Start/clean up test dependencies here or in test setup; stdout/stderr are the report.
+## `-race` below is Go's race detector and is shown only because this example is Go.
+## Use whatever your runtime offers, or nothing if it offers nothing.
+test:
+	go test ./... -race

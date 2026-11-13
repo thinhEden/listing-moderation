@@ -1,0 +1,19 @@
+# A starting point. Add the patterns your language and tools need.
+
+# BRIEF.md arrives as a separate attachment. Keep it out of the repository.
+BRIEF.md
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.localized
+__MACOSX/
+.AppleDouble
+.LSOverride
