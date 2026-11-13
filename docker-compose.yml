@@ -1,0 +1,40 @@
+# Used by `make run`. The Makefile passes `-p lm-<PORT>` so two instances on
+# different ports never share containers, networks or volumes.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: lm
+      POSTGRES_PASSWORD: lm
+      POSTGRES_DB: lm
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -h 127.0.0.1 forces TCP: during first-time init Postgres listens only on
+      # a unix socket, and a socket check would report healthy too early.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U lm -d lm"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build:
+      context: .
+      target: runtime
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://lm:lm@db:5432/lm?sslmode=disable
+    ports:
+      # Only the API is published. Postgres stays on the compose network.
+      - "${PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+
+# Kept across `make run` restarts: stopping the service does not delete data.
+volumes:
+  pgdata:

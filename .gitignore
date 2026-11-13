@@ -17,3 +17,13 @@ $RECYCLE.BIN/
 __MACOSX/
 .AppleDouble
 .LSOverride
+Icon[]
+
+# Go
+/bin/
+*.test
+*.out
+coverage.*
+
+# Local environment
+.env

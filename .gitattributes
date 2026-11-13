@@ -1,0 +1,4 @@
+# Keep line endings as LF everywhere. A CRLF checkout on Windows would break
+# shell recipes and scripts inside Linux containers.
+* text=auto eol=lf
+*.png binary

@@ -1,0 +1,8 @@
+.git
+BRIEF.md
+*.md
+Makefile*
+docker-compose*.yml
+bin
+*.test
+.env

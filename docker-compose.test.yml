@@ -1,0 +1,29 @@
+# Used by `make test`. Everything here is private to one test run: the Makefile
+# gives each run its own project name and removes it (with volumes) afterwards.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: lm
+      POSTGRES_PASSWORD: lm
+      POSTGRES_DB: lm
+    # Data lives in memory and disappears with the container.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U lm -d lm"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  test:
+    build:
+      context: .
+      target: test
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://lm:lm@db:5432/lm?sslmode=disable
+      # Database tests fail, rather than skip, if the database is missing.
+      REQUIRE_DB: "1"
