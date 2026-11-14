@@ -173,19 +173,21 @@ seed/                  reference data, loaded as shipped (do not edit)
 
 What is verified, and what is not:
 
-- `make test` passes, with the race detector, on a development machine (Windows 11, Docker
-  Desktop, `make` provided by `mingw32-make`). It has not been run on Linux or macOS.
-- `make run` has served requests end to end on that machine: submit, worker decision, moderator
-  decision, replay, `409`/`404`. `/readyz` returned `200` 34 s after `make run` on the first run
-  (which pulled the Go and Alpine base images; the PostgreSQL image was already cached by an
-  earlier `make test`) and 23 s on a later run with everything cached. **These are not
-  cold-machine timings.** A measurement on a machine with an empty image cache has not been
-  done, so the 180-second requirement is not yet confirmed.
-- A fresh `git clone` into an empty directory followed by `make run` and `make test` has not
-  been done yet.
-- Stopping `make run` with SIGTERM was checked by running the recipe of the `make run` target
-  under `bash` and signalling that shell (containers and network removed in about 2 s, data
-  volume kept). `make` itself was not signalled.
+- A fresh clone passed `make test` with real PostgreSQL and the race
+  detector, then `PORT=8081 make run` and HTTP smoke checks. Verification used GNU Make 4.4.1
+  inside an Alpine Linux runner container connected to Docker Desktop on Windows. This checks
+  the Linux make/Compose path, not a separate native Linux host. Windows `mingw32-make` was
+  also tested earlier; macOS has not been tested.
+- HTTP smoke checks covered automatic publication, trusted-seller R1 rejection, R3 duplicates,
+  idempotent replay and conflict, human approval with an empty moderator id, subsequent `409`,
+  unknown-id `404`, list arrays, and health probes.
+- `/readyz` returned `200` after **45 s** from that clone, including the runtime image build,
+  and **6 s** on restart. The previously measured Windows starts were 34 s with a cached
+  PostgreSQL image and 23 s with warm caches. **None is an empty-image-cache cold-machine
+  timing.** The strict 180-second cold-cache requirement remains unverified.
+- SIGTERM was sent directly to the GNU `make run` process, not just its recipe shell.
+  It exited `143`; containers and network were removed and the data volume was kept.
+  Starting it again preserved a published listing. Both shutdowns passed the cleanup checks.
 - Several service processes against one database have not been run; the concurrency tests use
   many connections and goroutines in one process.
 - No load or throughput measurements.
