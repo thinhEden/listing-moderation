@@ -36,7 +36,10 @@ NFC vs NFD differ → 409). Unknown fields are ignored and not hashed. Validate 
 before looking at the key; invalid requests do not store a key. Flow: `INSERT … ON
 CONFLICT DO NOTHING`, then a separate `SELECT`; 202 only after commit, 200 replay, 409 mismatch.
 **Parser:** reject duplicate JSON keys at any depth (unknown fields can nest), `UseNumber`,
-`price_vnd` must be a plain integer within int64, reject trailing data after the object.
+`price_vnd` must be digits only within int64 (`-0` is accepted as 0; fractions, exponents and
+other negatives are 400), reject trailing data after the object. Title is checked for length
+only (1..200 characters), never trimmed or judged. U+0000 in any string is a 400: a Postgres
+storage limit, not a content rule. Oversized bodies (>1 MiB) are 400.
 **Worker:** claim with `FOR UPDATE SKIP LOCKED` + `lease_token`; every lease update is
 conditional on that token. Result commit is a CAS on `status='pending'`. MAX_ATTEMPTS 5,
 lease 30s, exponential backoff from 1s. After the limit: R1 found → still `auto_rejected`;

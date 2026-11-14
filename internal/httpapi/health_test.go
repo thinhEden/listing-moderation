@@ -30,7 +30,7 @@ func get(t *testing.T, h http.Handler, method, path string) (*httptest.ResponseR
 
 func TestLivezIsOKEvenWhenDependenciesAreDown(t *testing.T) {
 	down := Check{Name: "database", Fn: func(context.Context) error { return errors.New("down") }}
-	rec, body := get(t, NewHandler(quiet(), down), http.MethodGet, "/livez")
+	rec, body := get(t, NewHandler(Deps{Log: quiet(), Readiness: []Check{down}}), http.MethodGet, "/livez")
 	if rec.Code != http.StatusOK || body["status"] != "ok" {
 		t.Fatalf("livez: %d %v", rec.Code, body)
 	}
@@ -41,7 +41,7 @@ func TestLivezIsOKEvenWhenDependenciesAreDown(t *testing.T) {
 
 func TestReadyzOKWhenAllChecksPass(t *testing.T) {
 	up := Check{Name: "database", Fn: func(context.Context) error { return nil }}
-	rec, body := get(t, NewHandler(quiet(), up), http.MethodGet, "/readyz")
+	rec, body := get(t, NewHandler(Deps{Log: quiet(), Readiness: []Check{up}}), http.MethodGet, "/readyz")
 	if rec.Code != http.StatusOK || body["status"] != "ok" {
 		t.Fatalf("readyz: %d %v", rec.Code, body)
 	}
@@ -53,7 +53,7 @@ func TestReadyzOKWhenAllChecksPass(t *testing.T) {
 func TestReadyz503WhenACheckFailsAndDoesNotLeakTheError(t *testing.T) {
 	bad := Check{Name: "database", Fn: func(context.Context) error { return errors.New("secret-host:5432 refused") }}
 	good := Check{Name: "other", Fn: func(context.Context) error { return nil }}
-	rec, body := get(t, NewHandler(quiet(), good, bad), http.MethodGet, "/readyz")
+	rec, body := get(t, NewHandler(Deps{Log: quiet(), Readiness: []Check{good, bad}}), http.MethodGet, "/readyz")
 	if rec.Code != http.StatusServiceUnavailable || body["status"] != "unavailable" {
 		t.Fatalf("readyz: %d %v", rec.Code, body)
 	}
@@ -72,7 +72,7 @@ func TestReadyzFailsInsteadOfHangingOnASlowCheck(t *testing.T) {
 		return ctx.Err()
 	}}
 	start := time.Now()
-	rec, _ := get(t, NewHandler(quiet(), slow), http.MethodGet, "/readyz")
+	rec, _ := get(t, NewHandler(Deps{Log: quiet(), Readiness: []Check{slow}}), http.MethodGet, "/readyz")
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status %d", rec.Code)
 	}
@@ -82,14 +82,14 @@ func TestReadyzFailsInsteadOfHangingOnASlowCheck(t *testing.T) {
 }
 
 func TestReadyzWithNoChecksIsReady(t *testing.T) {
-	rec, _ := get(t, NewHandler(quiet()), http.MethodGet, "/readyz")
+	rec, _ := get(t, NewHandler(Deps{Log: quiet()}), http.MethodGet, "/readyz")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
 }
 
 func TestProbesOnlyAnswerGET(t *testing.T) {
-	h := NewHandler(quiet())
+	h := NewHandler(Deps{Log: quiet()})
 	for _, p := range []string{"/livez", "/readyz"} {
 		rec, _ := get(t, h, http.MethodPost, p)
 		if rec.Code != http.StatusMethodNotAllowed {

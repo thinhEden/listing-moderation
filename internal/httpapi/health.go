@@ -7,12 +7,23 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"listing-moderation/internal/seed"
 )
 
 // Check is one dependency /readyz depends on.
 type Check struct {
 	Name string
 	Fn   func(context.Context) error
+}
+
+// Deps is everything the handler needs. Seed and Store may be nil when only the
+// probes are wanted (as in the probe tests).
+type Deps struct {
+	Log       *slog.Logger
+	Seed      *seed.Data
+	Store     ListingStore
+	Readiness []Check
 }
 
 // readyTimeout bounds the whole /readyz evaluation so a hung dependency makes
@@ -24,14 +35,21 @@ type health struct {
 	checks []Check
 }
 
-// NewHandler returns the service's HTTP handler. Business routes are added to
-// the same mux in later steps.
-func NewHandler(log *slog.Logger, readiness ...Check) http.Handler {
-	h := &health{log: log, checks: readiness}
+// NewHandler returns the service's HTTP handler.
+func NewHandler(d Deps) http.Handler {
 	mux := http.NewServeMux()
+
+	h := &health{log: d.Log, checks: d.Readiness}
 	mux.HandleFunc("GET /livez", h.livez)
 	mux.HandleFunc("GET /readyz", h.readyz)
-	return mux
+
+	if d.Store != nil {
+		a := &listingAPI{log: d.Log, seed: d.Seed, store: d.Store}
+		mux.HandleFunc("POST /v1/listings", a.create)
+		mux.HandleFunc("GET /v1/listings", a.list)
+		mux.HandleFunc("GET /v1/listings/{id}", a.get)
+	}
+	return withMiddleware(d.Log, mux)
 }
 
 // livez answers "is this process running and able to serve a request?". It
@@ -71,4 +89,9 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeError sends the API's Error schema: {"error": {"code", "message"}}.
+func writeError(w http.ResponseWriter, status int, code, message string) {
+	writeJSON(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
