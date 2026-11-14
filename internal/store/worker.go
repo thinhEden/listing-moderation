@@ -49,6 +49,9 @@ type Claim struct {
 	Fields     listing.Fields
 	Attempts   int    // including this one
 	LeaseToken string // identifies this claim; see RecordFailure
+	// LastError is the error recorded by the previous failed attempt, or "".
+	// It lets an escalation after too many retries say what went wrong.
+	LastError string
 }
 
 // ClaimPending takes up to limit pending listings whose lease is free or has
@@ -79,7 +82,7 @@ WHERE id IN (
     ORDER BY created_at, id
     LIMIT $1
     FOR UPDATE SKIP LOCKED)
-RETURNING id, seller_id, category_id, title, description, price_vnd, attempts, lease_token::text`,
+RETURNING id, seller_id, category_id, title, description, price_vnd, attempts, lease_token::text, last_error`,
 		limit, lease.Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("claim listings: %w", err)
@@ -90,9 +93,13 @@ RETURNING id, seller_id, category_id, title, description, price_vnd, attempts, l
 	for rows.Next() {
 		var c Claim
 		f := &c.Fields
+		var lastErr *string
 		if err := rows.Scan(&c.ID, &f.SellerID, &f.CategoryID, &f.Title, &f.Description, &f.PriceVND,
-			&c.Attempts, &c.LeaseToken); err != nil {
+			&c.Attempts, &c.LeaseToken, &lastErr); err != nil {
 			return nil, fmt.Errorf("claim listings: %w", err)
+		}
+		if lastErr != nil {
+			c.LastError = *lastErr
 		}
 		out = append(out, c)
 	}

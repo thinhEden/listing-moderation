@@ -48,6 +48,7 @@ func NewHandler(d Deps) http.Handler {
 		mux.HandleFunc("POST /v1/listings", a.create)
 		mux.HandleFunc("GET /v1/listings", a.list)
 		mux.HandleFunc("GET /v1/listings/{id}", a.get)
+		mux.HandleFunc("POST /v1/listings/{id}/decision", a.decide)
 	}
 	return withMiddleware(d.Log, mux)
 }

@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"listing-moderation/internal/listing"
+	"listing-moderation/internal/rules"
 	"listing-moderation/internal/seed"
 	"listing-moderation/internal/store"
 )
@@ -32,6 +33,7 @@ type ListingStore interface {
 	CreateListing(ctx context.Context, p store.CreateParams) (store.CreateResult, error)
 	GetListing(ctx context.Context, id string) (listing.Listing, error)
 	ListListings(ctx context.Context, f store.ListFilter) ([]listing.Listing, error)
+	ResolveHuman(ctx context.Context, id string, d rules.Decision) (listing.Listing, error)
 }
 
 type listingAPI struct {
@@ -196,4 +198,38 @@ func parseListQuery(r *http.Request) (store.ListFilter, error) {
 		f.Limit = n
 	}
 	return f, nil
+}
+
+// POST /v1/listings/{id}/decision
+//
+// A moderator resolves a listing that is waiting for a human. The body is
+// validated first (400), then one compare-and-set decides the outcome: 200 for
+// the single request that wins, 404 for an unknown listing, and 409 for every
+// other request, whether it lost a race to another moderator or the listing was
+// never waiting for a human.
+func (a *listingAPI) decide(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "could not read request body (is it larger than 1 MiB?)")
+		return
+	}
+	req, err := listing.ParseHumanDecision(body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+
+	d := rules.HumanDecision(req.Action == listing.ActionApprove, req.ModeratorID, req.Note)
+	l, err := a.store.ResolveHuman(r.Context(), r.PathValue("id"), d)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "no such listing")
+	case errors.Is(err, store.ErrNotAwaitingHuman):
+		writeError(w, http.StatusConflict, "not_awaiting_review", "listing is not awaiting human review")
+	case err != nil:
+		a.log.Error("resolve listing failed", "error", err.Error())
+		writeError(w, http.StatusInternalServerError, "internal", "internal error")
+	default:
+		writeJSON(w, http.StatusOK, l)
+	}
 }

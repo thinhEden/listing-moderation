@@ -45,8 +45,9 @@ conditional on that token. Result commit is a CAS on `status='pending'`. MAX_ATT
 lease 30s, exponential backoff from 1s. After the limit: R1 found → still `auto_rejected`;
 R1 clean → R3 check, then `needs_human` with `SYS_EVAL_FAILED`; **R1 itself failing → stay
 pending, keep retrying, alert. Never open an approve path without having run R1.**
-**Human decision:** `UPDATE … WHERE status='needs_human'`; 200 / 404 / 409. Reason `HUMAN`;
-no history kept. Expiry is not implemented.
+**Human decision:** `UPDATE … WHERE status='needs_human'`; 200 / 404 / 409. Body is validated
+first (400). `moderator_id` must be present and a string; an empty string is allowed (the schema
+does not forbid it). Reason `HUMAN`; no history kept. Expiry is not implemented.
 
 ## Conventions
 - Rules are pure functions (`internal/rules`); DB access only in `internal/store`.

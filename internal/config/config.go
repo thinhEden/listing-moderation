@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -20,6 +21,14 @@ type Config struct {
 	DBWait time.Duration
 	// ShutdownTimeout bounds graceful shutdown after SIGTERM/SIGINT.
 	ShutdownTimeout time.Duration
+
+	// Worker pool. See the worker package for what each one does.
+	Workers      int
+	PollInterval time.Duration
+	LeaseTime    time.Duration
+	MaxAttempts  int
+	BackoffBase  time.Duration
+	BackoffMax   time.Duration
 }
 
 // Lookup matches os.LookupEnv so tests can inject a fake environment.
@@ -32,6 +41,12 @@ func Load(lookup Lookup) (Config, error) {
 		SeedDir:         "seed",
 		DBWait:          60 * time.Second,
 		ShutdownTimeout: 15 * time.Second,
+		Workers:         4,
+		PollInterval:    250 * time.Millisecond,
+		LeaseTime:       30 * time.Second,
+		MaxAttempts:     5,
+		BackoffBase:     time.Second,
+		BackoffMax:      30 * time.Second,
 	}
 	var errs []error
 
@@ -55,11 +70,33 @@ func Load(lookup Lookup) (Config, error) {
 		*dst = d
 	}
 
+	num := func(key string, dst *int) {
+		v, ok := lookup(key)
+		if !ok || v == "" {
+			return
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			errs = append(errs, fmt.Errorf("%s must be a positive integer, got %q", key, v))
+			return
+		}
+		*dst = n
+	}
+
 	str("HTTP_ADDR", &c.HTTPAddr, false)
 	str("DATABASE_URL", &c.DatabaseURL, true)
 	str("SEED_DIR", &c.SeedDir, false)
 	dur("DB_WAIT", &c.DBWait)
 	dur("SHUTDOWN_TIMEOUT", &c.ShutdownTimeout)
+	num("WORKERS", &c.Workers)
+	dur("POLL_INTERVAL", &c.PollInterval)
+	dur("LEASE_DURATION", &c.LeaseTime)
+	num("MAX_ATTEMPTS", &c.MaxAttempts)
+	dur("BACKOFF_BASE", &c.BackoffBase)
+	dur("BACKOFF_MAX", &c.BackoffMax)
+	if c.BackoffMax < c.BackoffBase {
+		errs = append(errs, fmt.Errorf("BACKOFF_MAX (%s) must not be less than BACKOFF_BASE (%s)", c.BackoffMax, c.BackoffBase))
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return Config{}, err

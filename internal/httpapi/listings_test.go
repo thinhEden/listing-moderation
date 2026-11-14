@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"listing-moderation/internal/listing"
+	"listing-moderation/internal/rules"
 	"listing-moderation/internal/seed"
 	"listing-moderation/internal/store"
 )
@@ -29,6 +30,19 @@ type fakeStore struct {
 	getRes    listing.Listing
 	getErr    error
 	listRes   []listing.Listing
+
+	resolves   []rules.Decision
+	resolveIDs []string
+	resolveRes listing.Listing
+	resolveErr error
+}
+
+func (f *fakeStore) ResolveHuman(_ context.Context, id string, d rules.Decision) (listing.Listing, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resolveIDs = append(f.resolveIDs, id)
+	f.resolves = append(f.resolves, d)
+	return f.resolveRes, f.resolveErr
 }
 
 func (f *fakeStore) CreateListing(_ context.Context, p store.CreateParams) (store.CreateResult, error) {
