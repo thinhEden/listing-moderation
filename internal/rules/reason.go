@@ -4,7 +4,11 @@
 // its seller lock while the decision order stays here, in one place.
 package rules
 
-import "listing-moderation/internal/listing"
+import (
+	"encoding/json"
+
+	"listing-moderation/internal/listing"
+)
 
 // Rule ids as they appear in API reasons.
 const (
@@ -39,4 +43,17 @@ type Decision struct {
 	Status  listing.Status
 	Outcome Outcome
 	Reasons []Reason
+}
+
+// JSON is the form stored in listings.decision and returned as the API's
+// decision object: {"outcome": ..., "reasons": [...]}.
+func (d Decision) JSON() ([]byte, error) {
+	reasons := d.Reasons
+	if reasons == nil {
+		reasons = []Reason{} // never null
+	}
+	return json.Marshal(struct {
+		Outcome Outcome  `json:"outcome"`
+		Reasons []Reason `json:"reasons"`
+	}{d.Outcome, reasons})
 }

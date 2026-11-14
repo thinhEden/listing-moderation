@@ -31,6 +31,14 @@ type testHooks struct {
 	// before COMMIT, with the backend pid of the transaction. Returning an
 	// error rolls the transaction back.
 	afterInsert func(pid uint32) error
+
+	// afterDecide runs inside CommitAutomated after the decision was computed
+	// (seller lock held) and before the status is written; attempt starts at 1.
+	afterDecide func(pid uint32, attempt int) error
+
+	// beforeCommit runs inside CommitAutomated after the status was written
+	// and before COMMIT, still holding the seller lock.
+	beforeCommit func(pid uint32) error
 }
 
 const defaultLockTimeout = 3 * time.Second
